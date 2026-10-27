@@ -30,7 +30,7 @@ Un patient décrit ses symptômes. L'assistant (un modèle d'IA appelé via [Rod
 | --- | --- | --- |
 | `main` | Le socle : Docker (PostgreSQL, Mailpit, pgAdmin), configuration, squelette FastAPI et Next.js. Aucune fonctionnalité métier. | `orienta` (vide) |
 | `chatbot-without-encryption` | L'application complète : inscription par e-mail avec code, connexion, trois espaces selon le rôle, chatbot RodiumAI, liste de rappel, administration. **Les données personnelles sont stockées en clair.** | `orienta` |
-| `chatbot-with-encryption` | La même application, avec le chiffrement : AES-256-GCM, une clé (DEK) par utilisateur protégée par une clé maîtresse (KEK), index aveugle, rotation de la KEK, interrupteur de démonstration et vue « base brute ». | `orienta_encrypted` |
+| `chatbot-with-encryption` | La même application, avec le chiffrement : AES-256-GCM, une clé (DEK) par utilisateur protégée par une clé maîtresse (KEK), index aveugle, interrupteur `ENCRYPTION_ENABLED` dans le `.env` et rotation de la KEK en ligne de commande. | `orienta_encrypted` |
 
 Chaque branche part de la précédente. Pour voir exactement ce qu'ajoute le chiffrement :
 
@@ -75,7 +75,7 @@ orienta/
 | --- | --- | --- |
 | Patient | `/patient` | `PATIENT` (inscription libre) |
 | Agent de santé | `/oriagent` | `HEALTH_AGENT` (invité par un administrateur) |
-| Administrateur | `/oriadmin` | `ADMIN` (le premier est créé en ligne de commande) |
+| Administrateur | `/oriadmin` (vue d'ensemble, utilisateurs, agents, orientations, journal) | `ADMIN` (le premier est créé en ligne de commande) |
 
 Tous les profils se connectent sur la même page `/login`. Après connexion, l'API renvoie le rôle et l'application redirige vers le bon espace. L'API revérifie le rôle sur chaque route.
 
@@ -210,21 +210,22 @@ Le frontend n'a rien à reconfigurer. Relancez `npm run dev` si les pages ont ch
 
 **Avec l'interrupteur (branche `chatbot-with-encryption`)**
 
-Mettez `DEMO_MODE=true` dans `api/.env` et redémarrez l'API. Dans `/oriadmin`, la carte « Démonstration » permet :
+Dans `api/.env`, la variable `ENCRYPTION_ENABLED` décide comment les **nouveaux** messages sont enregistrés :
 
-- de choisir si les **nouveaux messages** sont enregistrés chiffrés ou en clair (F7) ;
-- d'afficher les tables `messages` et `users` telles qu'un attaquant les verrait (F8).
+1. Mettez `ENCRYPTION_ENABLED=false`, redémarrez l'API et envoyez un message : dans pgAdmin, il apparaît en clair dans la colonne `content_plaintext`.
+2. Remettez `ENCRYPTION_ENABLED=true`, redémarrez et envoyez un autre message : il n'apparaît que sous forme d'octets dans `content_ciphertext`.
+3. Le patient relit les deux messages normalement.
 
-`DEMO_MODE` ne doit jamais valoir `true` sur une instance qui contient de vraies données.
+Les noms, e-mails et téléphones restent chiffrés dans les deux cas. `ENCRYPTION_ENABLED=false` ne doit jamais être utilisé avec de vraies données.
 
 ## 8. Rotation de la clé maîtresse
 
-Branche `chatbot-with-encryption` uniquement.
+Branche `chatbot-with-encryption` uniquement. La rotation se fait **sur le serveur, en ligne de commande** : aucune page web ne touche aux clés.
 
 1. Générez une nouvelle clé : `python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"`.
 2. Ajoutez-la dans `api/.env` sous `KEK_V2=...`, **sans supprimer** `KEK_V1`, puis redémarrez l'API.
-3. Dans `/oriadmin`, cliquez sur « Faire tourner la clé maîtresse ». Toutes les DEK sont rechiffrées avec la KEK v2 ; les messages ne sont pas touchés.
-4. Quand la colonne « DEK protégées » de la v1 est à 0, vous pouvez retirer `KEK_V1` de l'environnement.
+3. Lancez `python -m app.cli rotate-kek` : toutes les DEK sont rechiffrées avec la KEK v2. Les messages ne sont pas touchés.
+4. Vérifiez avec `python -m app.cli keys-status`. Quand la v1 ne protège plus aucune DEK, vous pouvez retirer `KEK_V1` de l'environnement.
 
 ## 9. Tests
 
@@ -243,6 +244,8 @@ pytest -q
 | --- | --- |
 | `python -m app.cli create-admin --email … --name …` | Crée un administrateur actif |
 | `python -m app.cli generate-keys` | Affiche de nouveaux secrets (branche chiffrée) |
+| `python -m app.cli keys-status` | Versions de KEK et nombre de DEK protégées (branche chiffrée) |
+| `python -m app.cli rotate-kek` | Rotation de la clé maîtresse (branche chiffrée) |
 | `python -m app.cli mark-abandoned` | Passe en `ABANDONED` les conversations sans activité depuis 24 h |
 | `python -m app.cli purge-expired` | Supprime les codes et sessions expirés |
 | `alembic upgrade head` / `alembic downgrade -1` | Applique / annule une migration |
@@ -267,4 +270,4 @@ pytest -q
 
 ---
 
-**Sécurité.** Ne versionnez jamais `api/.env` ni `web/.env.local` (ils sont dans `.gitignore`). En production : `APP_ENV=production`, `COOKIE_SECURE=true`, `DEMO_MODE=false`, HTTPS obligatoire et une clé maîtresse dans un coffre à secrets plutôt que dans un fichier.
+**Sécurité.** Ne versionnez jamais `api/.env` ni `web/.env.local` (ils sont dans `.gitignore`). En production : `APP_ENV=production`, `COOKIE_SECURE=true`, `ENCRYPTION_ENABLED=true`, HTTPS obligatoire et une clé maîtresse dans un coffre à secrets plutôt que dans un fichier.

@@ -1,6 +1,6 @@
 # Orienta — Spécifications techniques du backend (TDR)
 
-> Version 0.2 · 27 octobre 2026 · Périmètre : backend de la première version (date de lancement à trancher, voir §15).
+> Version 0.3 · 27 octobre 2026 · Périmètre : backend de la première version (date de lancement à trancher, voir §15).
 > Document de référence pour le développement de l'API. Il découle du cahier des charges (fonctionnalités F1 à F12), complété par les décisions du 27 octobre 2026 (F1 modifiée, F13 à F15 ajoutées). Les évolutions M1 et M2 sont hors périmètre, mais l'architecture doit permettre de les ajouter sans refonte.
 
 Décisions du 27 octobre 2026, à reporter dans le cahier des charges :
@@ -15,7 +15,11 @@ Décisions du 27 octobre 2026, à reporter dans le cahier des charges :
 | Organisation | Un seul dépôt `orienta` avec `api/` et `web/`, et trois branches : `main` (socle), `chatbot-without-encryption`, `chatbot-with-encryption`. |
 | Infrastructure locale | Docker pour PostgreSQL, Mailpit (e-mails) et pgAdmin ; backend dans un environnement virtuel Python. |
 | Modèle d'IA | RodiumAI, via le SDK Python `rodiumai`. |
-| Espaces frontend | `/patient`, `/oriagent` (agents de santé), `/oriadmin` (administrateurs). |
+| Espaces frontend | `/patient`, `/oriagent` (agents de santé), `/oriadmin` (administrateurs), conformes à la maquette validée (logo Boussole). |
+| F7 (modifiée) | Le chiffrement des nouveaux messages s'active ou se désactive par la variable `ENCRYPTION_ENABLED` du fichier `.env`, sans aucun bouton dans l'interface. |
+| F8 (retirée) | Pas de vue « base brute » dans l'application : la comparaison avant / après se fait dans pgAdmin. |
+| F12 (modifiée) | La rotation de la KEK se fait uniquement en ligne de commande sur le serveur (`python -m app.cli rotate-kek`), jamais depuis le tableau de bord. |
+| Administration | Barre latérale avec cinq écrans : vue d'ensemble, utilisateurs (patients), agents de santé, orientations, journal d'audit. |
 
 ---
 
@@ -29,13 +33,13 @@ Le backend FastAPI est la source de vérité : il porte toute la logique métier
 | Conversation et pré-orientation | F3, F4, F5 |
 | Chiffrement et gestion des clés | F6, F12 |
 | Espace agent de santé | F10, F11 |
-| Administration (API admin) | F15, F12 |
-| Module de démonstration | F7, F8 |
+| Administration (API admin) | F15 |
+| Interrupteur de chiffrement et rotation (ligne de commande) | F7, F12 |
 | Qualité, déploiement | Toutes |
 
 Hors périmètre de cette version : M1 (coffre à secrets Vault ou KMS à la place du fichier `.env`) et M2 (annuaire des centres de santé pour orienter vers le plus proche). Voir §14 « Préparation des évolutions ».
 
-Le module de démonstration (F7, F8) n'existe que dans la branche `chatbot-with-encryption` et n'est actif que si `DEMO_MODE=true`. Il ne doit jamais être activé sur un environnement qui contient de vraies données.
+`ENCRYPTION_ENABLED` n'existe que dans la branche `chatbot-with-encryption`. Il vaut `true` en utilisation normale ; `false` n'est permis que pour la démonstration, jamais sur un environnement qui contient de vraies données.
 
 ---
 
@@ -83,7 +87,7 @@ Un seul dépôt Git, `orienta`, contient le backend (`api/`) et le frontend (`we
 | --- | --- | --- |
 | `main` | Socle : Docker Compose, configuration, squelette FastAPI (santé, format d'erreur, Alembic) et squelette Next.js, README | `orienta` |
 | `chatbot-without-encryption` | Toutes les fonctionnalités du périmètre, données personnelles en clair (migration `0001`) | `orienta` |
-| `chatbot-with-encryption` | Même code + chiffrement (§8), module de démonstration (F7, F8) et rotation de la KEK (migration `0002`) | `orienta_encrypted` |
+| `chatbot-with-encryption` | Même code + chiffrement (§8), interrupteur `ENCRYPTION_ENABLED` et rotation de la KEK en ligne de commande (migration `0002`) | `orienta_encrypted` |
 
 Les deux branches chatbot utilisent deux bases distinctes, créées par Docker, pour pouvoir les comparer côte à côte dans pgAdmin.
 
@@ -96,7 +100,7 @@ orienta/
 ├── api/
 │   ├── app/
 │   │   ├── main.py             # entry point of the api process
-│   │   ├── cli.py              # create-admin, generate-keys, mark-abandoned, purge-expired
+│   │   ├── cli.py              # create-admin, generate-keys, keys-status, rotate-kek, mark-abandoned, purge-expired
 │   │   ├── config.py           # environment settings (pydantic-settings)
 │   │   ├── db.py               # engine, session, declarative base
 │   │   ├── errors.py           # unique error format, request id
@@ -113,8 +117,7 @@ orienta/
 │   │       ├── auth/           # register, codes, login, refresh, logout, me
 │   │       ├── conversations/  # patient chat and triage
 │   │       ├── agent/          # urgent callback list for health agents
-│   │       ├── admin/          # users, audit log, keys
-│   │       ├── demo/           # encryption toggle and raw database view (encrypted branch)
+│   │       ├── admin/          # overview, patients, team, orientations, audit log
 │   │       └── health/         # liveness and readiness probes
 │   ├── alembic/                # migrations
 │   └── tests/
@@ -125,7 +128,7 @@ orienta/
 
 | Sujet | Règle |
 | --- | --- |
-| Préfixe | `/api/v1` ; espace agent sous `/api/v1/agent` ; API admin sous `/api/v1/admin` ; démo sous `/api/v1/demo`. Les pages frontend correspondantes sont `/patient`, `/oriagent` et `/oriadmin` |
+| Préfixe | `/api/v1` ; espace agent sous `/api/v1/agent` ; API admin sous `/api/v1/admin`. Les pages frontend correspondantes sont `/patient`, `/oriagent` et `/oriadmin` |
 | Identifiants | UUID v4 générés par l'application |
 | Montants | Non applicable |
 | Dates | Stockées en UTC (`timestamptz`) ; affichées dans le fuseau du navigateur (Bénin UTC+1, Togo UTC+0) |
@@ -164,7 +167,6 @@ Codes d'erreur métier :
 | 404 | `RESOURCE_NOT_FOUND` | Ressource absente ou appartenant à un autre utilisateur |
 | 409 | `EMAIL_ALREADY_REGISTERED` | Invitation d'une adresse qui a déjà un compte |
 | 409 | `INVALID_TRANSITION` | Changement de statut non autorisé |
-| 409 | `KEK_NOT_PROVISIONED` | Rotation demandée sans nouvelle `KEK_V<n>` chargée |
 | 409 | `CONVERSATION_CLOSED` | Message envoyé dans une conversation terminée |
 | 409 | `CALLBACK_ALREADY_ASSIGNED` | Rappel déjà pris par un autre agent |
 | 422 | `VERIFICATION_CODE_INVALID` | Code erroné |
@@ -222,10 +224,10 @@ Le navigateur ne parle qu'à l'origine Next.js : les appels `/api/*` sont transm
 
 ### 4.5 Autorisations
 
-- Une dépendance FastAPI `require_role(...)` protège chaque groupe de routes : routes patient → `PATIENT` ; `/agent/*` → `HEALTH_AGENT` ; `/admin/*` et `/demo/*` → `ADMIN`. Un mauvais rôle renvoie `403 FORBIDDEN_ROLE`.
+- Une dépendance FastAPI `require_role(...)` protège chaque groupe de routes : routes patient → `PATIENT` ; `/agent/*` → `HEALTH_AGENT` ; `/admin/*` → `ADMIN`. Un mauvais rôle renvoie `403 FORBIDDEN_ROLE`.
 - Patient : contrôle de propriété sur chaque ressource (`conversations.patient_id = sub`). Une ressource d'un autre patient renvoie `404`, pas `403`.
 - Agent de santé : il ne lit une conversation que si un rappel de cette conversation lui est attribué (F11). Chaque lecture est journalisée.
-- Administrateur : il gère les comptes, les réglages et les clés, mais n'a aucune route qui déchiffre une conversation.
+- Administrateur : il gère les comptes et suit les orientations (statut, niveau, rappel), mais n'a aucune route qui renvoie le contenu d'une conversation. Il voit les téléphones des patients masqués. Il n'a aucune action sur les clés de chiffrement.
 - Pas de permissions fines `resource.action` en v1 : trois rôles fixes suffisent (proposé).
 
 ### 4.6 Statuts de compte
@@ -385,9 +387,9 @@ Contrainte : `(status = 'ORIENTED') = (orientation_level IS NOT NULL)`.
 | `encryption_mode` | `encryption_mode` | NOT NULL, défaut `ENCRYPTED` |
 | `content_ciphertext` | `bytea` | NULL ; chiffré avec la DEK du patient |
 | `content_nonce` | `bytea` | NULL ; 12 octets |
-| `content_plaintext` | `text` | NULL ; rempli uniquement en mode `PLAINTEXT` (démo F7) |
+| `content_plaintext` | `text` | NULL ; rempli uniquement quand `ENCRYPTION_ENABLED=false` (démonstration, F7) |
 
-Contrainte : en `ENCRYPTED`, `content_ciphertext` et `content_nonce` NOT NULL et `content_plaintext` NULL ; en `PLAINTEXT`, l'inverse. L'API refuse `PLAINTEXT` si `DEMO_MODE=false`.
+Contrainte : en `ENCRYPTED`, `content_ciphertext` et `content_nonce` NOT NULL et `content_plaintext` NULL ; en `PLAINTEXT`, l'inverse. Le mode est choisi à l'écriture par `ENCRYPTION_ENABLED` ; un historique mélangeant les deux modes reste lisible.
 
 #### Espace agent de santé
 
@@ -574,16 +576,17 @@ Un échec de déchiffrement est une erreur interne (`500`) journalisée sans con
 
 ### 8.4 Rotation de la KEK (F12)
 
-1. L'exploitant ajoute `KEK_V<n+1>` dans `api/.env` et redémarre l'API. Les deux versions sont chargées.
-2. L'administrateur appelle `POST /admin/keys/rotate` : la version `n` passe `RETIRED`, la version `n+1` est créée en `ACTIVE`.
-3. Dans la même transaction, chaque DEK est déchiffrée avec l'ancienne KEK et rechiffrée avec la nouvelle, par lots de 500. Les messages ne sont pas touchés.
-4. Quand plus aucune DEK n'utilise la version `n` (`GET /admin/keys`), l'exploitant retire `KEK_V<n>` de l'environnement.
+La rotation ne se fait **que sur le serveur**, en ligne de commande. Aucune route web ne touche aux clés : un compte administrateur volé ne permet aucune opération sur elles.
 
-Sans nouvelle version chargée, la route renvoie `409 KEK_NOT_PROVISIONED`.
+1. L'exploitant génère une clé, l'ajoute dans `api/.env` sous `KEK_V<n+1>` sans retirer `KEK_V<n>`, et redémarre l'API.
+2. Il lance `python -m app.cli rotate-kek` : la version `n` passe `RETIRED`, la version `n+1` est créée en `ACTIVE`, puis chaque DEK est déchiffrée avec l'ancienne KEK et rechiffrée avec la nouvelle, par lots de 500, dans la même transaction. Les messages ne sont pas touchés. L'opération est inscrite au journal (`kek.rotated`).
+3. `python -m app.cli keys-status` affiche le nombre de DEK par version. Quand la version `n` n'en protège plus aucune, l'exploitant retire `KEK_V<n>` de l'environnement.
 
-### 8.5 Mode de démonstration (F7, F8)
+Sans nouvelle version chargée, la commande s'arrête avec un message et ne change rien.
 
-Avec `DEMO_MODE=true`, les routes `/demo/*` sont montées. L'interrupteur `PUT /demo/encryption-mode` choisit si les **nouveaux** messages sont enregistrés `ENCRYPTED` ou `PLAINTEXT` ; il est gardé en mémoire et revient à `ENCRYPTED` au redémarrage. Avec `DEMO_MODE=false`, tout message est chiffré, quel que soit l'interrupteur. Les noms, e-mails et téléphones restent toujours chiffrés.
+### 8.5 Interrupteur de chiffrement (F7)
+
+`ENCRYPTION_ENABLED` (fichier `api/.env`, défaut `true`) décide comment les **nouveaux** messages sont enregistrés : `ENCRYPTED` (AES-256-GCM) ou `PLAINTEXT` (`content_plaintext`). Les messages déjà enregistrés restent lisibles dans les deux cas. Les noms, e-mails et téléphones restent toujours chiffrés. La valeur `false` ne sert qu'à montrer la différence pendant une démonstration ; la comparaison se fait dans pgAdmin.
 
 ---
 
@@ -623,24 +626,18 @@ Toutes les routes sont préfixées par `/api/v1`. 🔒 = jeton requis.
 | POST | `/agent/callbacks/{id}/close` 🔒 | Clôt en `COMPLETED` ou `UNREACHABLE`, avec note facultative |
 | GET | `/agent/callbacks/{id}/conversation` 🔒 | Conversation du rappel attribué ; journalisée `conversation.read` (F11) |
 
-### 9.4 Administration (`/admin`, rôle `ADMIN`, page `/oriadmin`)
-
-| Domaine | Routes | Description |
-| --- | --- | --- |
-| Comptes | `GET /admin/users`, `POST /admin/users`, `PATCH /admin/users/{id}/status` | Liste, invitation d'un agent ou d'un administrateur, désactivation et réactivation (F15) |
-| Journal | `GET /admin/audit-logs?action=&limit=` | Derniers événements du journal d'audit |
-| Clés (branche chiffrée) | `GET /admin/keys`, `POST /admin/keys/rotate` | Versions de KEK, nombre de DEK par version, rotation (F12) |
-
-### 9.5 Démonstration (`/demo`, rôle `ADMIN`, branche chiffrée, `DEMO_MODE=true`)
+### 9.4 Administration (`/admin`, rôle `ADMIN`, pages `/oriadmin/*`)
 
 | Méthode | Route | Description |
 | --- | --- | --- |
-| GET | `/demo/encryption-mode` 🔒 | Mode courant : `ENCRYPTED` ou `PLAINTEXT` |
-| PUT | `/demo/encryption-mode` 🔒 | Change le mode des nouveaux messages (F7) |
-| GET | `/demo/raw/messages?limit=` 🔒 | Lignes brutes de `messages`, octets en hexadécimal (F8) |
-| GET | `/demo/raw/users?limit=` 🔒 | Lignes brutes de `users`, octets en hexadécimal (F8) |
-
-Avec `DEMO_MODE=false`, ces routes ne sont pas montées et renvoient `404 RESOURCE_NOT_FOUND`.
+| GET | `/admin/overview` 🔒 | Vue d'ensemble : patients inscrits (et de la semaine), agents actifs, invitations en attente, conversations en cours, urgences en attente et la plus ancienne, liste des urgences ouvertes |
+| GET | `/admin/patients?status=&q=` 🔒 | Patients : nom, e-mail, téléphone masqué, nombre de demandes ; compteurs par statut. La recherche se fait après lecture (les noms peuvent être chiffrés en base) |
+| GET | `/admin/team?role=` 🔒 | Agents de santé et administrateurs : rappels en cours, rappels clôturés sur 30 jours, dernière connexion ; compteurs par rôle |
+| POST | `/admin/team` 🔒 | Invite un agent ou un administrateur (F15) |
+| POST | `/admin/team/{id}/resend-invitation` 🔒 | Renvoie le code d'invitation (`429` si trop tôt) |
+| PATCH | `/admin/users/{id}/status` 🔒 | Désactive ou réactive un compte |
+| GET | `/admin/orientations?status=&level=` 🔒 | Conversations avec statut, niveau, nombre de questions et état du rappel, sans contenu ; indicateurs : en cours, urgences en attente, délai moyen de rappel et nombre moyen de questions sur 30 jours |
+| GET | `/admin/audit-logs?category=&action=&limit=` 🔒 | Journal d'audit avec le nom de l'acteur ; `category` = `auth`, `accounts`, `conversations` ou `callbacks` |
 
 ### 9.6 Santé
 
@@ -661,6 +658,8 @@ Pas de file de tâches en v1. Les tâches sont des commandes, à lancer par cron
 | `python -m app.cli purge-expired` | Supprime les codes et jetons de rafraîchissement expirés depuis plus d'un jour | Tous les jours |
 | `python -m app.cli create-admin` | Crée un administrateur actif | À l'installation |
 | `python -m app.cli generate-keys` | Affiche de nouveaux secrets pour `api/.env` (branche chiffrée) | À l'installation |
+| `python -m app.cli keys-status` | Versions de KEK chargées et nombre de DEK par version (branche chiffrée) | À la demande |
+| `python -m app.cli rotate-kek` | Rotation de la KEK (§8.4, branche chiffrée) | Au besoin, par l'exploitant |
 
 Les e-mails partent dans le processus `api`, en tâche d'arrière-plan FastAPI, juste après la réponse HTTP.
 
@@ -707,7 +706,7 @@ Les e-mails partent dans le processus `api`, en tâche d'arrière-plan FastAPI, 
 | `CONVERSATIONS_ABANDON_AFTER_SECONDS` | `86400` (proposé) |
 | `KEK_V1`, `KEK_V2`… | Branche chiffrée : 32 octets aléatoires en base64, une variable par version |
 | `BLIND_INDEX_KEY` | Branche chiffrée : 32 octets aléatoires en base64 |
-| `DEMO_MODE` | Branche chiffrée : `false` ; `true` uniquement pour la démonstration |
+| `ENCRYPTION_ENABLED` | Branche chiffrée : `true` ; `false` uniquement pour la démonstration (§8.5) |
 
 Docker Compose a son propre fichier `.env` à la racine (identifiants PostgreSQL et pgAdmin, ports). Le frontend a `web/.env.local` (`API_URL`).
 
@@ -717,8 +716,8 @@ Docker Compose a son propre fichier `.env` à la racine (identifiants PostgreSQL
 
 - Environnement local : `docker compose up -d` lance PostgreSQL 16 (port 5432), Mailpit (SMTP 1025, boîte mail http://localhost:8025) et pgAdmin (http://localhost:5050, serveur déjà déclaré). L'API tourne dans un environnement virtuel Python (`api/.venv`), le frontend avec `npm run dev`. Le README décrit l'installation de A à Z.
 - Tests (`pytest`, base `orienta_test`, modèle factice) :
-    - deux branches : inscription et code, refus de connexion avant vérification, compteur d'essais, absence de fuite sur une inscription en double, refus d'un espace d'un autre rôle, parcours complet jusqu'à la clôture d'un rappel urgent, rotation et détection de réutilisation des jetons de rafraîchissement ;
-    - branche chiffrée : aller-retour de chiffrement, rejet d'un texte modifié, rejet d'une AAD différente, 1 000 chiffrements du même texte tous différents, absence de texte en clair dans les tables `users` et `messages`, interrupteur de démo, rotation de la KEK sans toucher aux messages.
+    - deux branches : inscription et code, refus de connexion avant vérification, compteur d'essais, absence de fuite sur une inscription en double, refus d'un espace d'un autre rôle, parcours complet jusqu'à la clôture d'un rappel urgent, écrans d'administration (vue d'ensemble, recherche de patients, équipe, orientations sans contenu, journal filtré), rotation et détection de réutilisation des jetons de rafraîchissement ;
+    - branche chiffrée : aller-retour de chiffrement, rejet d'un texte modifié, rejet d'une AAD différente, 1 000 chiffrements du même texte tous différents, absence de texte en clair dans les tables `users` et `messages`, interrupteur `ENCRYPTION_ENABLED`, rotation de la KEK en ligne de commande sans toucher aux messages, absence de toute route web sur les clés.
 - Migrations : Alembic. `0001` (schéma en clair) sur les deux branches chatbot ; `0002` (chiffrement) sur la branche chiffrée, qui refuse de s'appliquer à une base contenant déjà des utilisateurs.
 - CI à mettre en place (proposé) : ruff, mypy, pytest, gitleaks, bandit, pip-audit, `next build`.
 
@@ -757,6 +756,6 @@ Docker Compose a son propre fichier `.env` à la racine (identifiants PostgreSQL
 2. Authentification : inscription, codes par e-mail via Mailpit, connexion, rafraîchissement, rôles, redirection, journal d'audit.
 3. Conversations : adaptateur RodiumAI, prompt système, pré-orientation et garde-fous.
 4. Espace agent : liste de rappel, prise et clôture, lecture journalisée.
-5. Administration : invitations, désactivation, journal.
-6. Branche `chatbot-with-encryption` : enveloppe DEK/KEK, AAD, index aveugle, migration `0002`, rotation, module de démonstration.
+5. Administration : vue d'ensemble, patients, équipe et invitations, orientations, journal d'audit.
+6. Branche `chatbot-with-encryption` : enveloppe DEK/KEK, AAD, index aveugle, migration `0002`, interrupteur `ENCRYPTION_ENABLED`, rotation en ligne de commande.
 7. Avant toute donnée réelle : CI, audit de sécurité, points de §15.
