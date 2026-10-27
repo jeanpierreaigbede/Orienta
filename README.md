@@ -38,12 +38,15 @@ Chaque branche part de la précédente. Pour voir exactement ce qu'ajoute le chi
 git diff chatbot-without-encryption chatbot-with-encryption -- api/
 ```
 
+Les spécifications techniques sont dans `docs/orienta-backend-tdr.md`, et les schémas des tables dans `docs/orienta-backend-data-model.md`.
+
 Les deux branches chatbot utilisent deux bases différentes, ce qui permet de les comparer côte à côte dans pgAdmin.
 
 ## 2. Structure du dépôt
 
 ```
 orienta/
+├── docs/                     # TDR backend et modèle de données (schémas Mermaid)
 ├── docker-compose.yml        # PostgreSQL, Mailpit, pgAdmin
 ├── .env.example              # variables de Docker Compose
 ├── docker/
