@@ -11,7 +11,7 @@ from app import audit
 from app.db import get_db
 from app.deps import require_role
 from app.errors import AppError
-from app.llm import ChatModel, get_chat_model
+from app.llm import ChatModel, LLMUnavailable, get_chat_model
 from app.models import Conversation, ConversationStatus, MessageSender, OrientationLevel, User, UserRole
 from app.modules.conversations.triage import process_patient_message
 from app.repository import messages_public
@@ -53,7 +53,10 @@ class ConversationPage(CamelModel):
 
 
 def get_model() -> ChatModel:
-    return get_chat_model()
+    try:
+        return get_chat_model()
+    except LLMUnavailable as exc:  # e.g. RODIUMAI_API_KEY missing
+        raise AppError(503, "LLM_UNAVAILABLE", "The assistant is temporarily unavailable. Please try again.") from exc
 
 
 def _owned(db: Session, conversation_id: uuid.UUID, patient: User) -> Conversation:
