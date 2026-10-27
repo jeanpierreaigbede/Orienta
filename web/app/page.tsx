@@ -1,32 +1,26 @@
+import { TopBar } from "@/components/TopBar";
 import { HealthBadge } from "@/lib/HealthBadge";
 
 export default function HomePage() {
   return (
     <main>
-      <header className="topbar">
-        <a className="brand" href="/">
-          Orient<span>a</span>
-        </a>
-      </header>
+      <TopBar />
       <section className="hero">
         <div className="container">
-          <h1>Orienta</h1>
+          <h1>Décrivez vos symptômes, on vous oriente.</h1>
           <p>
-            Un assistant de pré-orientation pour les ONG de santé : il recueille les symptômes et oriente vers le bon
-            niveau de soins, sans exposer les données des patients.
+            Orienta est l'assistant de pré-orientation de votre ONG de santé. Il vous indique s'il faut consulter en
+            urgence, dans les 48 heures, ou si des soins à domicile suffisent.
           </p>
+          <div className="row" style={{ marginTop: 24 }}>
+            <a className="btn" href="/register">Créer un compte</a>
+            <a className="btn secondary" href="/login">Se connecter</a>
+          </div>
         </div>
       </section>
-      <section className="container">
-        <div className="card stack">
-          <h2>Socle technique</h2>
-          <p className="muted">
-            Cette branche contient uniquement le socle : Docker, configuration, API et application web. Les
-            fonctionnalités se trouvent dans les branches <code>chatbot-without-encryption</code> et{" "}
-            <code>chatbot-with-encryption</code>.
-          </p>
-          <HealthBadge />
-        </div>
+      <section className="container stack">
+        <div className="alert warning">Orienta ne remplace pas un professionnel de santé et ne pose aucun diagnostic.</div>
+        <HealthBadge />
       </section>
     </main>
   );

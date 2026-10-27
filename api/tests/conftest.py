@@ -1,0 +1,64 @@
+import os
+
+# Tests run against a dedicated database (created by the README instructions: orienta_test).
+os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://orienta:orienta@localhost:5432/orienta_test")
+os.environ["LLM_PROVIDER"] = "fake"
+os.environ.setdefault("JWT_SECRET", "test-secret-test-secret-test-secret-0123")
+os.environ.setdefault("CODE_HMAC_KEY", "test-code-key")
+
+import pytest  # noqa: E402
+from alembic import command  # noqa: E402
+from alembic.config import Config  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import text  # noqa: E402
+
+from app.db import engine  # noqa: E402
+
+SENT_MAILS: list[dict] = []
+
+
+@pytest.fixture(scope="session", autouse=True)
+def database():
+    config = Config(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
+    config.set_main_option("script_location", os.path.join(os.path.dirname(__file__), "..", "alembic"))
+    command.downgrade(config, "base")
+    command.upgrade(config, "head")
+    yield
+
+
+@pytest.fixture(autouse=True)
+def clean(monkeypatch):
+    with engine.begin() as conn:
+        tables = conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> 'alembic_version'")).scalars().all()
+        if tables:
+            conn.execute(text("TRUNCATE " + ", ".join(tables) + " CASCADE"))
+    SENT_MAILS.clear()
+
+    def fake_send(to, template, **params):
+        SENT_MAILS.append({"to": to, "template": template, **params})
+
+    monkeypatch.setattr("app.modules.auth.service.send_template", fake_send)
+    monkeypatch.setattr("app.modules.auth.router.send_template", fake_send)
+    yield
+
+
+@pytest.fixture
+def client():
+    from app.main import app
+
+    return TestClient(app)
+
+
+def last_code(email: str) -> str:
+    return [m for m in SENT_MAILS if m["to"] == email][-1]["code"]
+
+
+def register_and_verify(client: TestClient, email: str = "awa@example.com") -> TestClient:
+    r = client.post("/api/v1/auth/register", json={
+        "email": email, "password": "motdepasse123", "fullName": "Awa Houngbo",
+        "phone": "+229 01 97 12 34 56", "consentVersion": "2026-10",
+    })
+    assert r.status_code == 202, r.text
+    r = client.post("/api/v1/auth/verify-email", json={"email": email, "code": last_code(email)})
+    assert r.status_code == 200, r.text
+    return client
