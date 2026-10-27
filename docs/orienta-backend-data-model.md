@@ -151,7 +151,7 @@ erDiagram
         enum sender "PATIENT | ASSISTANT"
         enum encryption_mode "ENCRYPTED | PLAINTEXT"
         bytea content_ciphertext "patient DEK"
-        text content_plaintext "PLAINTEXT demo mode only"
+        text content_plaintext "only when ENCRYPTION_ENABLED=false"
     }
     callback_requests {
         uuid id PK
