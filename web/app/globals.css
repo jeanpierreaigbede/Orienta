@@ -1,0 +1,94 @@
+:root {
+  --night: #0b1f3a;        /* bleu nuit */
+  --night-2: #143057;
+  --blue: #1769e0;         /* bleu santé */
+  --blue-dark: #0f52b5;
+  --blue-soft: #e8f1fd;
+  --ink: #0f1b2d;
+  --muted: #5b6b80;
+  --line: #dce3ec;
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --danger: #c62828;
+  --danger-soft: #fdecec;
+  --warning: #9a5b00;
+  --warning-soft: #fff4e0;
+  --success: #1b7f4b;
+  --success-soft: #e6f5ec;
+  --radius: 10px;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; }
+a { color: var(--blue); }
+
+.topbar {
+  background: var(--night);
+  color: #fff;
+  padding: 0 24px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand { font-weight: 700; font-size: 20px; letter-spacing: 0.3px; color: #fff; text-decoration: none; }
+.brand span { color: #7fb2ff; }
+.topbar nav { display: flex; gap: 16px; align-items: center; font-size: 14px; }
+.topbar nav a, .topbar button.link { color: #cfe0ff; background: none; border: 0; cursor: pointer; font: inherit; padding: 0; }
+
+.container { max-width: 1040px; margin: 0 auto; padding: 32px 24px; }
+.narrow { max-width: 440px; }
+
+h1 { font-size: 28px; margin: 0 0 8px; color: var(--night); }
+h2 { font-size: 20px; margin: 0 0 12px; color: var(--night); }
+p.lead { color: var(--muted); margin: 0 0 24px; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+
+label { font-size: 14px; font-weight: 600; display: flex; flex-direction: column; gap: 6px; }
+input, textarea, select {
+  font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
+}
+input:focus, textarea:focus, select:focus { outline: 2px solid var(--blue-soft); border-color: var(--blue); }
+
+.btn {
+  font: inherit; font-weight: 600; border: 0; border-radius: 8px; padding: 10px 16px; cursor: pointer;
+  background: var(--blue); color: #fff;
+}
+.btn:hover { background: var(--blue-dark); }
+.btn:disabled { opacity: 0.6; cursor: default; }
+.btn.secondary { background: var(--blue-soft); color: var(--blue-dark); }
+.btn.danger { background: var(--danger); }
+.btn.small { padding: 6px 10px; font-size: 13px; }
+
+.alert { padding: 10px 14px; border-radius: 8px; font-size: 14px; }
+.alert.error { background: var(--danger-soft); color: var(--danger); }
+.alert.info { background: var(--blue-soft); color: var(--blue-dark); }
+.alert.warning { background: var(--warning-soft); color: var(--warning); }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--blue-soft); color: var(--blue-dark); }
+.badge.EMERGENCY, .badge.DISABLED { background: var(--danger-soft); color: var(--danger); }
+.badge.CONSULTATION_48H, .badge.PENDING, .badge.PENDING_VERIFICATION { background: var(--warning-soft); color: var(--warning); }
+.badge.HOME_CARE, .badge.COMPLETED, .badge.ACTIVE, .badge.ORIENTED { background: var(--success-soft); color: var(--success); }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+.mono { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 12px; word-break: break-all; }
+.muted { color: var(--muted); font-size: 14px; }
+
+.chat { display: flex; flex-direction: column; gap: 10px; min-height: 320px; }
+.bubble { max-width: 78%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; line-height: 1.45; }
+.bubble.PATIENT { align-self: flex-end; background: var(--blue); color: #fff; border-bottom-right-radius: 4px; }
+.bubble.ASSISTANT { align-self: flex-start; background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+
+.hero { background: var(--night); color: #fff; padding: 72px 24px; }
+.hero h1 { color: #fff; font-size: 40px; }
+.hero p { color: #cfe0ff; max-width: 620px; font-size: 18px; }

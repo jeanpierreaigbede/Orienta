@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Orienta (local)",
+      "Group": "Orienta",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "orienta",
+      "Username": "orienta",
+      "SSLMode": "prefer"
+    }
+  }
+}
