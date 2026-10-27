@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     refresh_token_ttl_seconds: int = 604800
     cookie_secure: bool = False
 
+    # Encryption (KEK_V<version> variables are read by app.crypto.keys)
+    blind_index_key: str = ""  # 32 random bytes, base64
+    # true: new messages are encrypted. false: stored in plain text, only to show the difference in a demo.
+    encryption_enabled: bool = True
+
     # Verification codes and login protection (proposed values, see TDR section 4)
     verification_code_ttl_seconds: int = 600
     verification_max_attempts: int = 5

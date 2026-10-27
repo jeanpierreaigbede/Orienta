@@ -5,6 +5,9 @@ os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://orienta:orienta@loca
 os.environ["LLM_PROVIDER"] = "fake"
 os.environ.setdefault("JWT_SECRET", "test-secret-test-secret-test-secret-0123")
 os.environ.setdefault("CODE_HMAC_KEY", "test-code-key")
+os.environ["KEK_V1"] = "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE="  # test-only key
+os.environ["BLIND_INDEX_KEY"] = "YmxpbmQtaW5kZXgta2V5LWZvci10ZXN0cy0xMjM0NTY="
+os.environ["ENCRYPTION_ENABLED"] = "true"
 
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402
@@ -32,9 +35,12 @@ def database():
 @pytest.fixture(autouse=True)
 def clean(monkeypatch):
     with engine.begin() as conn:
-        tables = conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> 'alembic_version'")).scalars().all()
+        tables = conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename NOT IN ('alembic_version', 'key_encryption_keys')")).scalars().all()
         if tables:
             conn.execute(text("TRUNCATE " + ", ".join(tables) + " CASCADE"))
+        # Keep the KEK version 1 row created by migration 0002, and undo any rotation from a previous test.
+        conn.execute(text("DELETE FROM key_encryption_keys WHERE version > 1"))
+        conn.execute(text("UPDATE key_encryption_keys SET status = 'ACTIVE', retired_at = NULL WHERE version = 1"))
     SENT_MAILS.clear()
 
     def fake_send(to, template, **params):
