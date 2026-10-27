@@ -32,7 +32,7 @@ export default function HomePage() {
             </span>
           </div>
         ))}
-        <p className="row" style={{ gap: 8, fontSize: 13, fontWeight: 600, color: "#0B1F3A" }}>
+        <p className="row" style={{ gap: 8, fontSize: 13, fontWeight: 600, color: "#0B1F3A", flexWrap: "nowrap" }}>
           <Lock /> Vos messages sont chiffrés avant d'être enregistrés.
         </p>
       </section>

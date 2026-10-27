@@ -63,7 +63,7 @@ export default function ConversationPage() {
             <span className="row" style={{ gap: 10 }}>{level === "EMERGENCY" && <Warning />}<span className="level">{ORIENTATION_LABELS[level]}</span></span>
             <p style={{ fontSize: 15, lineHeight: 1.55 }}>{ORIENTATION_ADVICE[level]}</p>
             {level === "EMERGENCY" && (
-              <p className="row" style={{ gap: 8, fontWeight: 700 }}><Phone size={18} /> Un agent de santé va vous rappeler.</p>
+              <p className="row" style={{ gap: 8, fontWeight: 700, flexWrap: "nowrap" }}><Phone size={18} /> Un agent de santé va vous rappeler.</p>
             )}
           </div>
         )}
@@ -77,7 +77,7 @@ export default function ConversationPage() {
             <input id="answer" required maxLength={2000} value={content} onChange={(e) => setContent(e.target.value)} placeholder="Votre réponse…" />
             <button className="send" disabled={busy} aria-label="Envoyer"><Send /></button>
           </form>
-          <p className="row muted" style={{ justifyContent: "center", gap: 6, fontSize: 12 }}><Lock size={13} /> Chiffré avant enregistrement · ne remplace pas un soignant</p>
+          <p className="row muted" style={{ justifyContent: "center", gap: 6, fontSize: 12, flexWrap: "nowrap" }}><Lock size={13} /> Chiffré avant enregistrement · ne remplace pas un soignant</p>
         </div>
       ) : (
         <p className="disclaimer" style={{ padding: "12px 24px 24px" }}>{DISCLAIMER}</p>
