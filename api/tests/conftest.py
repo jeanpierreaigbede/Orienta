@@ -21,7 +21,10 @@ SENT_MAILS: list[dict] = []
 def database():
     config = Config(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
     config.set_main_option("script_location", os.path.join(os.path.dirname(__file__), "..", "alembic"))
-    command.downgrade(config, "base")
+    # Start from an empty schema: the test database is shared by both chatbot branches.
+    with engine.begin() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
     command.upgrade(config, "head")
     yield
 
