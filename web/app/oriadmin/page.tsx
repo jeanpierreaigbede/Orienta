@@ -1,119 +1,64 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { ErrorBox } from "@/components/ErrorBox";
-import { TopBar } from "@/components/TopBar";
-import { api, ApiError, User } from "@/lib/api";
-import { formatDate, ROLE_LABELS, STATUS_LABELS } from "@/lib/texts";
-import { useSession } from "@/lib/useSession";
+import { StatusBadge } from "@/components/Badge";
+import { api } from "@/lib/api";
+import { formatDate, waiting } from "@/lib/texts";
 
-interface AuditLog {
-  id: string;
-  actorRole: string | null;
-  action: string;
-  resourceType: string;
-  createdAt: string;
+interface Overview {
+  patients: number;
+  patientsThisWeek: number;
+  activeAgents: number;
+  pendingInvitations: number;
+  conversationsInProgress: number;
+  urgentWaiting: number;
+  oldestUrgentMinutes: number | null;
+  urgent: { callbackId: string; patientName: string; orientedAt: string | null; waitingMinutes: number | null; status: string; agentName: string | null }[];
 }
 
-export default function AdminSpace() {
-  const user = useSession("ADMIN");
-  const [users, setUsers] = useState<User[]>([]);
-  const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [invite, setInvite] = useState({ email: "", fullName: "", role: "HEALTH_AGENT" });
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setUsers(await api<User[]>("/admin/users"));
-    setLogs(await api<AuditLog[]>("/admin/audit-logs?limit=30"));
-  }, []);
+export default function AdminOverview() {
+  const [data, setData] = useState<Overview | null>(null);
   useEffect(() => {
-    if (user) load();
-  }, [user, load]);
+    api<Overview>("/admin/overview").then(setData);
+  }, []);
+  if (!data) return null;
 
-  async function run(action: () => Promise<unknown>, success?: string) {
-    setError(null);
-    setInfo(null);
-    try {
-      await action();
-      if (success) setInfo(success);
-      await load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.code : "HTTP_ERROR");
-    }
-  }
-
-  function submitInvite(e: FormEvent) {
-    e.preventDefault();
-    run(async () => {
-      await api("/admin/users", { method: "POST", body: invite });
-      setInvite({ email: "", fullName: "", role: "HEALTH_AGENT" });
-    }, "Invitation envoyée. Le code d'activation est dans la boîte mail de la personne invitée.");
-  }
-
-  if (!user) return <TopBar />;
+  const kpis = [
+    { label: "Patients inscrits", value: data.patients, sub: `+${data.patientsThisWeek} cette semaine` },
+    { label: "Agents de santé actifs", value: data.activeAgents, sub: data.pendingInvitations ? `${data.pendingInvitations} invitation(s) en attente` : "Aucune invitation en attente" },
+    { label: "Orientations en cours", value: data.conversationsInProgress, sub: "conversations ouvertes" },
+    { label: "Urgences à rappeler", value: data.urgentWaiting, sub: data.oldestUrgentMinutes !== null ? `la plus ancienne : ${waiting(data.oldestUrgentMinutes)}` : "aucune en attente", urgent: true },
+  ];
 
   return (
-    <main>
-      <TopBar user={user} />
-      <div className="container stack">
-        <h1>Administration</h1>
-        <ErrorBox code={error} />
-        {info && <div className="alert info">{info}</div>}
-        <form className="card stack" onSubmit={submitInvite}>
-          <h2>Inviter un membre de l'équipe</h2>
-          <div className="row">
-            <input required placeholder="Nom complet" value={invite.fullName} onChange={(e) => setInvite({ ...invite, fullName: e.target.value })} />
-            <input required type="email" placeholder="Adresse e-mail" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} />
-            <select value={invite.role} onChange={(e) => setInvite({ ...invite, role: e.target.value })}>
-              <option value="HEALTH_AGENT">Agent de santé</option>
-              <option value="ADMIN">Administrateur</option>
-            </select>
-            <button className="btn">Inviter</button>
+    <>
+      <div className="page-head"><div><h1>Vue d'ensemble</h1><p>Activité de l'assistant et de l'équipe de rappel.</p></div></div>
+      <div className="kpis">
+        {kpis.map((k) => (
+          <div key={k.label} className="card kpi">
+            <span className="label">{k.label}</span>
+            <span className={`value ${k.urgent && k.value > 0 ? "urgent" : ""}`}>{k.value}</span>
+            <span className="muted" style={{ fontSize: 13 }}>{k.sub}</span>
           </div>
-        </form>
-        <div className="card">
-          <h2>Comptes</h2>
-          <table>
-            <thead><tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th>Statut</th><th /></tr></thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.fullName}</td>
-                  <td>{u.email}</td>
-                  <td>{ROLE_LABELS[u.role]}</td>
-                  <td><span className={`badge ${u.status}`}>{STATUS_LABELS[u.status]}</span></td>
-                  <td>
-                    {u.id !== user.id && u.status === "ACTIVE" && (
-                      <button className="btn small danger" onClick={() => run(() => api(`/admin/users/${u.id}/status`, { method: "PATCH", body: { status: "DISABLED" } }))}>Désactiver</button>
-                    )}
-                    {u.status === "DISABLED" && (
-                      <button className="btn small secondary" onClick={() => run(() => api(`/admin/users/${u.id}/status`, { method: "PATCH", body: { status: "ACTIVE" } }))}>Réactiver</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="card">
-          <h2>Journal d'audit (30 derniers événements)</h2>
-          <table>
-            <thead><tr><th>Date</th><th>Action</th><th>Rôle</th><th>Ressource</th></tr></thead>
-            <tbody>
-              {logs.map((l) => (
-                <tr key={l.id}>
-                  <td className="muted">{formatDate(l.createdAt)}</td>
-                  <td className="mono">{l.action}</td>
-                  <td>{l.actorRole ? ROLE_LABELS[l.actorRole] : "Système"}</td>
-                  <td>{l.resourceType}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        ))}
       </div>
-    </main>
+      <section className="card">
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <h2>Urgences en attente de rappel</h2>
+          <a href="/oriadmin/orientations" style={{ fontSize: 14, fontWeight: 700, textDecoration: "none", padding: "10px 0" }}>Toutes les orientations</a>
+        </div>
+        {data.urgent.length === 0 && <p className="muted" style={{ paddingTop: 8 }}>Aucune urgence en attente.</p>}
+        {data.urgent.map((u) => (
+          <div key={u.callbackId} className="row" style={{ justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid #EEF2F6" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <strong style={{ fontSize: 15 }}>{u.patientName}</strong>
+              <span className="muted" style={{ fontSize: 13 }}>Orientée {formatDate(u.orientedAt)}{u.waitingMinutes !== null ? ` · en attente depuis ${waiting(u.waitingMinutes)}` : ""}</span>
+            </div>
+            {u.agentName ? <StatusBadge status="ASSIGNED" label={u.agentName} /> : <StatusBadge status="PENDING" label="Non attribué" />}
+          </div>
+        ))}
+      </section>
+    </>
   );
 }

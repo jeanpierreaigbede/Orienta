@@ -44,3 +44,12 @@ export async function api<T>(path: string, options: Options = {}, retry = true):
   }
   return data as T;
 }
+
+export async function logout(): Promise<void> {
+  await api("/auth/logout", { method: "POST" }).catch(() => undefined);
+  window.location.href = "/login";
+}
+
+export function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("");
+}

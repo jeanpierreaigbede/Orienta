@@ -22,12 +22,12 @@ export function errorText(code: string): string {
 
 export const ORIENTATION_LABELS: Record<string, string> = {
   EMERGENCY: "Urgence",
-  CONSULTATION_48H: "Consultation sous 48 h",
-  HOME_CARE: "Conseils à domicile",
+  CONSULTATION_48H: "Consultation 48 h",
+  HOME_CARE: "Domicile",
 };
 
 export const ORIENTATION_ADVICE: Record<string, string> = {
-  EMERGENCY: "Rendez-vous aux urgences les plus proches ou appelez les secours. Un agent de santé va vous rappeler.",
+  EMERGENCY: "Rendez-vous aux urgences les plus proches ou appelez les secours.",
   CONSULTATION_48H: "Consultez un centre de santé dans les 48 heures.",
   HOME_CARE: "Suivez les conseils ci-dessus et consultez si les symptômes persistent ou s'aggravent.",
 };
@@ -40,7 +40,7 @@ export const STATUS_LABELS: Record<string, string> = {
   ASSIGNED: "Pris en charge",
   COMPLETED: "Patient joint",
   UNREACHABLE: "Injoignable",
-  PENDING_VERIFICATION: "En attente de vérification",
+  PENDING_VERIFICATION: "Non vérifié",
   ACTIVE: "Actif",
   DISABLED: "Désactivé",
 };
@@ -58,4 +58,17 @@ export const CONSENT_VERSION = "2026-10";
 export function formatDate(value: string | null): string {
   if (!value) return "—";
   return new Date(value).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+}
+
+export const LEVEL_BADGE: Record<string, string> = { EMERGENCY: "orange", CONSULTATION_48H: "blue", HOME_CARE: "teal" };
+export const STATUS_BADGE: Record<string, string> = {
+  IN_PROGRESS: "blue", ORIENTED: "teal", ABANDONED: "", PENDING: "orange", ASSIGNED: "blue", COMPLETED: "teal",
+  UNREACHABLE: "", ACTIVE: "teal", PENDING_VERIFICATION: "orange", DISABLED: "",
+};
+
+export function waiting(minutes: number | null): string {
+  if (minutes === null) return "";
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  return `${h} h ${String(minutes % 60).padStart(2, "0")}`;
 }

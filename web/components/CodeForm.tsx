@@ -4,9 +4,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import { ErrorBox } from "@/components/ErrorBox";
+import { PasswordInput } from "@/components/PasswordInput";
 import { api, ApiError, HOME_BY_ROLE, User } from "@/lib/api";
 
-/** Shared by e-mail verification (patients) and invitation acceptance (agents, admins). */
+/** Shared by e-mail verification (patients) and invitation acceptance (team members). */
 export function CodeForm({ mode }: { mode: "verify" | "invitation" }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -28,7 +29,6 @@ export function CodeForm({ mode }: { mode: "verify" | "invitation" }) {
       router.replace(HOME_BY_ROLE[user.role]);
     } catch (err) {
       setError(err instanceof ApiError ? err.code : "HTTP_ERROR");
-    } finally {
       setBusy(false);
     }
   }
@@ -37,32 +37,36 @@ export function CodeForm({ mode }: { mode: "verify" | "invitation" }) {
     setError(null);
     try {
       await api("/auth/resend-code", { method: "POST", body: { email } });
-      setInfo("Si l'adresse est en attente de vérification, un nouveau code vient d'être envoyé.");
+      setInfo("Un nouveau code vient d'être envoyé.");
     } catch (err) {
       setError(err instanceof ApiError ? err.code : "HTTP_ERROR");
     }
   }
 
   return (
-    <form className="card stack" onSubmit={submit}>
+    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <ErrorBox code={error} />
       {info && <div className="alert info">{info}</div>}
-      <label>
-        Adresse e-mail
-        <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-      </label>
-      <label>
-        Code reçu par e-mail
-        <input required inputMode="numeric" pattern="\d{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" />
-      </label>
-      {mode === "invitation" && (
-        <label>
-          Choisissez un mot de passe (10 caractères minimum)
-          <input type="password" required minLength={10} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+      {!params.get("email") && (
+        <label className="field">Adresse e-mail
+          <input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
       )}
-      <button className="btn" disabled={busy}>{mode === "verify" ? "Vérifier mon adresse" : "Activer mon compte"}</button>
-      <button type="button" className="btn secondary" onClick={resend}>Renvoyer un code</button>
+      <label className="field">Code reçu par e-mail
+        <input className="input" required inputMode="numeric" pattern="\d{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value)}
+          placeholder="••••••" style={{ height: 58, fontSize: 26, fontWeight: 700, letterSpacing: 14, textAlign: "center" }} autoComplete="one-time-code" />
+      </label>
+      {mode === "invitation" && (
+        <label className="field">Choisissez un mot de passe
+          <PasswordInput value={password} onChange={setPassword} autoComplete="new-password" minLength={10} />
+          <small>10 caractères minimum.</small>
+        </label>
+      )}
+      <div className="row" style={{ justifyContent: "space-between", fontSize: 14 }}>
+        <span className="muted">Pas reçu ? Vérifiez vos spams.</span>
+        <button type="button" className="btn small soft" onClick={resend}>Renvoyer le code</button>
+      </div>
+      <button className="btn block" disabled={busy}>{mode === "verify" ? "Vérifier mon adresse" : "Activer mon compte"}</button>
     </form>
   );
 }

@@ -52,7 +52,7 @@ def test_full_emergency_flow(client):
     create_admin("admin@example.com", "Admin", "adminpassword1")
     admin = TestClient(client.app)
     assert admin.post("/api/v1/auth/login", json={"email": "admin@example.com", "password": "adminpassword1"}).status_code == 200
-    r = admin.post("/api/v1/admin/users", json={"email": "agent@example.com", "fullName": "Agent Dossou", "role": "HEALTH_AGENT"})
+    r = admin.post("/api/v1/admin/team", json={"email": "agent@example.com", "fullName": "Agent Dossou", "role": "HEALTH_AGENT"})
     assert r.status_code == 201, r.text
 
     agent = TestClient(client.app)
@@ -82,3 +82,35 @@ def test_refresh_rotation_and_reuse_detection(client):
     assert reuse.post("/api/v1/auth/refresh").status_code == 401
     # The whole family is revoked, including the latest token.
     assert client.post("/api/v1/auth/refresh").status_code == 401
+
+
+def test_admin_screens(client):
+    register_and_verify(client)
+    conv = client.post("/api/v1/conversations", json={"content": "J'ai de la fièvre"}).json()["id"]
+    client.post(f"/api/v1/conversations/{conv}/messages", json={"content": "J'ai du mal à respirer"})
+    create_admin("admin@example.com", "Admin", "adminpassword1")
+    admin = TestClient(client.app)
+    admin.post("/api/v1/auth/login", json={"email": "admin@example.com", "password": "adminpassword1"})
+    admin.post("/api/v1/admin/team", json={"email": "agent@example.com", "fullName": "Agent Dossou", "role": "HEALTH_AGENT"})
+
+    overview = admin.get("/api/v1/admin/overview").json()
+    assert overview["patients"] == 1 and overview["urgentWaiting"] == 1 and overview["pendingInvitations"] == 1
+    assert overview["urgent"][0]["patientName"] == "Awa Houngbo"
+
+    patients = admin.get("/api/v1/admin/patients?q=awa").json()
+    assert patients["items"][0]["phoneMasked"].endswith("•• 56") and patients["items"][0]["conversations"] == 1
+    assert admin.get("/api/v1/admin/patients?q=zzz").json()["items"] == []
+
+    team = admin.get("/api/v1/admin/team").json()
+    assert team["counts"] == {"ALL": 2, "HEALTH_AGENT": 1, "ADMIN": 1}
+    agent_id = next(m["id"] for m in team["items"] if m["role"] == "HEALTH_AGENT")
+    assert admin.post(f"/api/v1/admin/team/{agent_id}/resend-invitation").status_code == 429  # just sent
+
+    orientations = admin.get("/api/v1/admin/orientations?level=EMERGENCY").json()
+    assert orientations["stats"]["urgentWaiting"] == 1
+    assert orientations["items"][0]["callback"]["status"] == "PENDING"
+    assert "messages" not in orientations["items"][0]  # never the content
+
+    logs = admin.get("/api/v1/admin/audit-logs?category=conversations").json()
+    assert {log["action"] for log in logs} <= {"conversation.started", "conversation.oriented", "conversation.read"}
+    assert any(log["actorName"] == "Awa Houngbo" for log in logs)
