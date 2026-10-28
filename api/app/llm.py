@@ -38,13 +38,15 @@ class RodiumAIModel:
         self.api_key = settings.rodiumai_api_key
         self.model = settings.rodiumai_model
         self.timeout = settings.llm_timeout_seconds
+        self.max_tokens = settings.llm_max_tokens
 
     async def _complete(self, messages: list[dict]) -> str:
         from rodiumai import RodiumAI, RodiumAIError
 
         client = RodiumAI(api_key=self.api_key, timeout=self.timeout, max_retries=1)
         try:
-            response = await client.chat.completions.create(model=self.model, messages=messages, temperature=0.2)
+            response = await client.chat.completions.create(model=self.model, messages=messages, temperature=0.2,
+                                                            max_tokens=self.max_tokens)
         except RodiumAIError as exc:
             # The error type only: prompts are never logged.
             logger.warning("rodiumai_error type=%s", type(exc).__name__)
