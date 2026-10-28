@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     rodiumai_api_key: str | None = None
     rodiumai_model: str = "openai/gpt-4o"
     llm_timeout_seconds: float = 60
+    llm_max_tokens: int = 600  # caps the reply, and the credit RodiumAI reserves per call
     triage_max_follow_up_questions: int = 4
     triage_red_flag_keywords: str = ""  # comma separated, to be validated by a health professional
     conversations_abandon_after_seconds: int = 86400
